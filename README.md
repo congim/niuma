@@ -1,4 +1,4 @@
-# 牛马脱敏器
+<img width="924" height="1020" alt="image" src="https://github.com/user-attachments/assets/f4c85b4b-0717-4797-882d-52b963491031" /># 牛马脱敏器
 
 一个 Windows 桌面悬浮窗小工具：实时显示你今天上班已经赚了多少钱，数字平滑滚动，精确到小数点后 5 位。
 
