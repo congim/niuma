@@ -51,7 +51,7 @@ bash build-macos.sh
 open "dist/牛马脱敏器.app"
 ```
 
-同时生成两种芯片的 DMG、支持 Apple 芯片和 Intel 的 `dist/牛马脱敏器-macOS-universal.zip`，以及 `dist/SHA256SUMS.txt`。当前使用本地 ad-hoc 签名，尚未经过 Apple Developer ID 签名或公证，首次打开可能受到 macOS 安全检查限制。构建时未配置编译工具，可先运行 `xcode-select --install`。
+同时生成两种芯片的 DMG、支持 Apple 芯片和 Intel 的 `dist/NiuMa-macOS-universal-1.0.0.zip`，以及 `dist/SHA256SUMS.txt`。当前使用本地 ad-hoc 签名，尚未经过 Apple Developer ID 签名或公证，首次打开可能受到 macOS 安全检查限制。构建时未配置编译工具，可先运行 `xcode-select --install`。
 
 Mac 版保留薪资计算、工作状态、进度、月累计、心愿单、语录、滚轮数字、迷你、防窥、置顶、拖动吸附、穿透、临时调休、设置、上下班通知和登录启动。设置在保存后应用，取消放弃修改；通知和登录启动默认关闭，需在设置中自行启用。登录启动采用系统登录项，建议先移动到「应用程序」。
 

@@ -33,8 +33,10 @@ plutil -lint "$app/Contents/Info.plist"
 codesign --force --sign - --timestamp=none "$app"
 codesign --verify --strict --verbose=2 "$app"
 ditto "$app" "dist/牛马脱敏器.app"
-ditto -c -k --sequesterRsrc --keepParent "dist/牛马脱敏器.app" "dist/牛马脱敏器-macOS-universal.zip"
 version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' macos/Info.plist)
+archive="dist/NiuMa-macOS-universal-$version.zip"
+ditto -c -k --sequesterRsrc --keepParent "dist/牛马脱敏器.app" "$archive"
+cp "$archive" "dist/牛马脱敏器-macOS-universal.zip"
 for architecture in arm64 x86_64; do
   image_root="$staging/$architecture"
   image_app="$image_root/牛马脱敏器.app"
@@ -61,8 +63,8 @@ INSTALL
   hdiutil verify "$image"
 done
 shasum -a 256 "dist/NiuMa-macOS-arm64-$version.dmg" "dist/NiuMa-macOS-x86_64-$version.dmg" \
-  "dist/牛马脱敏器-macOS-universal.zip" | sed 's|  dist/|  |' > dist/SHA256SUMS.txt
+  "$archive" | sed 's|  dist/|  |' > dist/SHA256SUMS.txt
 xcrun lipo -info "dist/牛马脱敏器.app/Contents/MacOS/NiuMa"
 echo "已生成：$PWD/dist/牛马脱敏器.app"
-echo "分发包：$PWD/dist/牛马脱敏器-macOS-universal.zip"
+echo "分发包：$PWD/$archive"
 echo "安装包：$PWD/dist/NiuMa-macOS-{arm64,x86_64}-$version.dmg"

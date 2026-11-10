@@ -8,7 +8,7 @@
 | --- | --- |
 | Apple 芯片（M 系列） | `NiuMa-macOS-arm64-1.0.0.dmg` |
 | Intel 芯片 | `NiuMa-macOS-x86_64-1.0.0.dmg` |
-| 同时兼容两种芯片 | `牛马脱敏器-macOS-universal.zip` |
+| 同时兼容两种芯片 | `NiuMa-macOS-universal-1.0.0.zip` |
 
 打开对应的 DMG，将「牛马脱敏器.app」拖到「Applications」后打开。应用入口在屏幕顶部菜单栏的钞票图标，不显示 Dock 图标。Universal ZIP 解压后也可将应用拖入「应用程序」。
 

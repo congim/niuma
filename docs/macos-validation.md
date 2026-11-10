@@ -5,7 +5,7 @@
 ## 交付
 
 - `dist/牛马脱敏器.app`
-- `dist/牛马脱敏器-macOS-universal.zip`
+- `dist/NiuMa-macOS-universal-1.0.0.zip`（同时保留本地中文文件名副本）
 - `dist/NiuMa-macOS-arm64-1.0.0.dmg`（Apple 芯片）
 - `dist/NiuMa-macOS-x86_64-1.0.0.dmg`（Intel 芯片）
 - `dist/SHA256SUMS.txt`
