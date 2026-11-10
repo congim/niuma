@@ -20,6 +20,7 @@ done
 xcrun lipo -create "$staging/NiuMa-arm64" "$staging/NiuMa-x86_64" -output "$app/Contents/MacOS/NiuMa"
 cp macos/Info.plist "$app/Contents/Info.plist"
 cp beij.png "$app/Contents/Resources/beij.png"
+cp LICENSE "$app/Contents/Resources/LICENSE.txt"
 mkdir -p "$staging/AppIcon.iconset"
 sips -s format png src/app.ico --out "$staging/icon.png" >/dev/null
 for size in 16 32 128 256 512; do
@@ -33,6 +34,35 @@ codesign --force --sign - --timestamp=none "$app"
 codesign --verify --strict --verbose=2 "$app"
 ditto "$app" "dist/牛马脱敏器.app"
 ditto -c -k --sequesterRsrc --keepParent "dist/牛马脱敏器.app" "dist/牛马脱敏器-macOS-universal.zip"
+version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' macos/Info.plist)
+for architecture in arm64 x86_64; do
+  image_root="$staging/$architecture"
+  image_app="$image_root/牛马脱敏器.app"
+  mkdir -p "$image_root"
+  ditto "$app" "$image_app"
+  xcrun lipo "$app/Contents/MacOS/NiuMa" -thin "$architecture" -output "$image_app/Contents/MacOS/NiuMa"
+  codesign --force --sign - --timestamp=none "$image_app"
+  codesign --verify --strict --verbose=2 "$image_app"
+  ln -s /Applications "$image_root/Applications"
+  cat > "$image_root/安装说明.txt" <<'INSTALL'
+牛马脱敏器 · macOS 13 或以上
+
+将「牛马脱敏器.app」拖入「Applications」后，从应用程序中打开。
+应用入口在屏幕顶部菜单栏的钞票图标，不显示 Dock 图标。
+
+当前版本使用本地 ad-hoc 签名，尚未通过 Apple Developer ID 签名和公证。
+首次打开可能受到 macOS 安全检查限制。
+
+通知和登录启动默认关闭，可在设置中启用。
+问题反馈与源码：https://github.com/congim/niuma
+INSTALL
+  image="dist/NiuMa-macOS-$architecture-$version.dmg"
+  hdiutil create -volname "牛马脱敏器 $architecture" -srcfolder "$image_root" -format UDZO -ov "$image"
+  hdiutil verify "$image"
+done
+shasum -a 256 "dist/NiuMa-macOS-arm64-$version.dmg" "dist/NiuMa-macOS-x86_64-$version.dmg" \
+  "dist/牛马脱敏器-macOS-universal.zip" | sed 's|  dist/|  |' > dist/SHA256SUMS.txt
 xcrun lipo -info "dist/牛马脱敏器.app/Contents/MacOS/NiuMa"
 echo "已生成：$PWD/dist/牛马脱敏器.app"
 echo "分发包：$PWD/dist/牛马脱敏器-macOS-universal.zip"
+echo "安装包：$PWD/dist/NiuMa-macOS-{arm64,x86_64}-$version.dmg"

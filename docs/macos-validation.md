@@ -6,6 +6,9 @@
 
 - `dist/牛马脱敏器.app`
 - `dist/牛马脱敏器-macOS-universal.zip`
+- `dist/NiuMa-macOS-arm64-1.0.0.dmg`（Apple 芯片）
+- `dist/NiuMa-macOS-x86_64-1.0.0.dmg`（Intel 芯片）
+- `dist/SHA256SUMS.txt`
 - 系统最低版本标记为 macOS 13.0，包含 arm64 和 x86_64。
 - 本地 ad-hoc 签名；不是 Developer ID 签名、公证或 App Store 发布。
 - 不依赖第三方库；动态链接检查只显示 Apple 系统框架和系统 Swift 库。
@@ -27,6 +30,8 @@
 6. `codesign --verify --strict` 通过；ZIP CRC 完整，二进制/元数据/背景/图标与 `.app` 匹配；用 macOS `ditto` 解压后再次验证签名与二进制通过。
 7. Windows `src/`、`build.ps1`、`beij.png` 和 `LICENSE` 与基线完全一致。
 8. 真实桌面测试退出后，已确认本任务的应用和测试进程结束；没有创建浏览器测试会话。
+9. 两个 DMG 均通过镜像校验，并分别只读挂载检查：二进制恰好为对应的单一架构，版本为 1.0.0、最低系统标记为 13.0；签名、背景、MIT 许可证、安装说明与 `/Applications` 拖入入口均正确。检查后均已卸载镜像。
+10. `SHA256SUMS.txt` 的两个 DMG 和 Universal ZIP 三个校验值均通过本地核对。发布说明位于 `docs/releases/macos-v1.0.0.md`。
 
 ## 未完成的实机验证
 

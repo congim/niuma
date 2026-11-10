@@ -38,7 +38,12 @@ macOS 使用 `Control + Option + M / H / T`，对应上述三个全局操作。�
 
 ### macOS 版本
 
-本分支包含独立原生 Mac 实现，要求 **macOS 13 或以上**。编译后打开 `dist/牛马脱敏器.app`；也可以将它拖入「应用程序」。应用不显示 Dock 图标，入口在屏幕顶部菜单栏。
+本分支包含独立原生 Mac 实现，要求 **macOS 13 或以上**。在 [macOS v1.0.0 发布页](https://github.com/congim/niuma/releases/tag/macos-v1.0.0) 按芯片选择安装包：
+
+- Apple 芯片（M 系列）：`NiuMa-macOS-arm64-1.0.0.dmg`
+- Intel 芯片：`NiuMa-macOS-x86_64-1.0.0.dmg`
+
+打开 DMG，将「牛马脱敏器.app」拖到「Applications」后打开。应用不显示 Dock 图标，入口在屏幕顶部菜单栏。发布页也提供 Universal ZIP 和 `SHA256SUMS.txt`。
 
 ```bash
 # 只需 Apple Command Line Tools；不需要 .NET、Node 或第三方依赖
@@ -46,7 +51,7 @@ bash build-macos.sh
 open "dist/牛马脱敏器.app"
 ```
 
-同时生成支持 Apple 芯片和 Intel 的 `dist/牛马脱敏器-macOS-universal.zip`。当前使用本地 ad-hoc 签名，尚未经过 Apple Developer ID 签名或公证；这不是已发布的正式安装包。构建时未配置编译工具，可先运行 `xcode-select --install`。
+同时生成两种芯片的 DMG、支持 Apple 芯片和 Intel 的 `dist/牛马脱敏器-macOS-universal.zip`，以及 `dist/SHA256SUMS.txt`。当前使用本地 ad-hoc 签名，尚未经过 Apple Developer ID 签名或公证，首次打开可能受到 macOS 安全检查限制。构建时未配置编译工具，可先运行 `xcode-select --install`。
 
 Mac 版保留薪资计算、工作状态、进度、月累计、心愿单、语录、滚轮数字、迷你、防窥、置顶、拖动吸附、穿透、临时调休、设置、上下班通知和登录启动。设置在保存后应用，取消放弃修改；通知和登录启动默认关闭，需在设置中自行启用。登录启动采用系统登录项，建议先移动到「应用程序」。
 
@@ -72,7 +77,7 @@ powershell -ExecutionPolicy Bypass -File .\build.ps1
 
 ```
 ├── build.ps1              编译脚本
-├── build-macos.sh         macOS Universal .app / ZIP 构建
+├── build-macos.sh         macOS Universal .app / ZIP、两种芯片 DMG 构建
 ├── test-macos.sh          Mac 纯逻辑测试；--app 追加原生窗口测试
 ├── beij.png               默认背景图
 ├── macos
