@@ -131,7 +131,7 @@ struct Engine {
             if let next = next, snapshot.speed > 0 {
                 let need = (next.price - snapshot.earned) / snapshot.speed
                 if snapshot.state == .overtime || need <= max(0, snapshot.paidSeconds - snapshot.paidElapsed) {
-                    return "再过 \(Self.duration(need, precise: false))，\(next.name)就赚回来了。"
+                    return "再计薪 \(Self.duration(need, precise: false))，\(next.name)就赚回来了。"
                 }
             }
             if let best = best { return "今天已经赚到\(best.name)了，稳住。" }
@@ -143,6 +143,7 @@ struct Engine {
     func report(_ settings: AppSettings, at date: Date) -> String {
         let snapshot = compute(settings, at: date)
         func money(_ value: Double) -> String { settings.masked ? "****" : settings.currency + String(format: "%.2f", value) }
-        return "【\(settings.appName) · 今日战报】\(dateKey(date))\n状态：\(snapshot.state.rawValue)\n今日已赚：\(money(snapshot.earned)) / \(money(snapshot.dailyPay))（进度 \(String(format: "%.1f", snapshot.progress * 100))%）\n时薪：\(money(snapshot.hourlyPay))" + (settings.masked ? "" : "\n" + wishText(settings, snapshot: snapshot))
+        let title = settings.salaryConfigured ? "今日战报" : "示例战报 · 尚未设置薪资"
+        return "【\(settings.appName) · \(title)】\(dateKey(date))\n状态：\(snapshot.state.rawValue)\n今日已赚：\(money(snapshot.earned)) / \(money(snapshot.dailyPay))（进度 \(String(format: "%.1f", snapshot.progress * 100))%）\n时薪：\(money(snapshot.hourlyPay))" + (settings.masked ? "" : "\n" + wishText(settings, snapshot: snapshot))
     }
 }

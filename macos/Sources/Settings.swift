@@ -7,6 +7,7 @@ struct SettingsError: LocalizedError {
 
 struct AppSettings: Codable, Equatable {
     var appName = "牛马脱敏器"
+    var salaryConfigured = false
     var salaryMode = 0
     var amount = 100.0
     var monthDays = 21.75
@@ -119,7 +120,8 @@ struct SettingsStore {
               let defaults = try JSONSerialization.jsonObject(with: JSONEncoder().encode(AppSettings())) as? [String: Any] else {
             throw SettingsError(message: "设置文件格式不正确：\(fileURL.path)")
         }
-        let merged = defaults.merging(saved) { _, new in new }
+        var merged = defaults.merging(saved) { _, new in new }
+        if saved["salaryConfigured"] == nil { merged["salaryConfigured"] = true }
         return try JSONDecoder().decode(AppSettings.self, from: JSONSerialization.data(withJSONObject: merged)).validated()
     }
 

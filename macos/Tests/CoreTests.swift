@@ -108,6 +108,23 @@ struct CoreTests {
         defer { try? FileManager.default.removeItem(at: directory) }
         let store = SettingsStore(directory: directory)
         check(try store.load() == AppSettings(), "missing file loads defaults")
+        let freshJSON = try JSONSerialization.jsonObject(with: JSONEncoder().encode(store.load())) as! [String: Any]
+        check(freshJSON["salaryConfigured"] as? Bool == false, "first launch explicitly marks example salary")
+        var example = AppSettings()
+        example.windowX = 120
+        try store.save(example)
+        check(try !store.load().salaryConfigured, "position persistence keeps example salary unconfigured")
+        check(engine.report(example, at: date("2026-11-10T14:00:00")).contains("示例战报"), "example report identifies example salary")
+        example.salaryConfigured = true
+        check(!engine.report(example, at: date("2026-11-10T14:00:00")).contains("示例"), "configured report has no example marker")
+        example.amount = 800
+        example.startTime = "09:00"
+        example.endTime = "18:00"
+        example.lunchEnabled = true
+        example.wishlist = "小目标=400"
+        let beforeLunch = engine.compute(example, at: date("2026-11-10T11:50:00"))
+        let wish = engine.wishText(example, snapshot: beforeLunch)
+        check(wish.contains("再计薪") && !wish.contains("再过"), "wish crossing lunch explicitly describes paid time")
         settings.appName = "牛马 🫏 = 测试"
         settings.quotes = "反斜杠\\和等号=\n第二句"
         try store.save(settings)
@@ -118,6 +135,8 @@ struct CoreTests {
         check(try Data(contentsOf: store.fileURL) == original, "failed save preserves previous data")
         try Data("{\"amount\":200}".utf8).write(to: store.fileURL)
         check(try store.load().amount == 200 && store.load().decimals == 5, "missing fields get defaults")
+        let legacyJSON = try JSONSerialization.jsonObject(with: JSONEncoder().encode(store.load())) as! [String: Any]
+        check(legacyJSON["salaryConfigured"] as? Bool == true, "legacy settings count as configured salary")
         let corrupt = Data("not JSON".utf8)
         try corrupt.write(to: store.fileURL)
         do { _ = try store.load(); fatalError("corrupt file accepted") } catch {}

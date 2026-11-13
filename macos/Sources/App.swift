@@ -54,12 +54,14 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUs
     private var observers: [NSObjectProtocol] = []
     private var failures: [String] = []
     private var isShuttingDown = false
+    private var reportCopiedUntil = Date.distantPast
 
     init(store: SettingsStore = SettingsStore()) { self.store = store; super.init() }
 
     func applicationDidFinishLaunching(_ notification: Notification) { start() }
 
     func start() {
+        let firstLaunch = !FileManager.default.fileExists(atPath: store.fileURL.path)
         do { settings = try store.load() } catch { loadError = error }
         panel.mainView.configureActions(target: self)
         panel.mainView.makeMenu = { [weak self] in self?.makeMenu() ?? NSMenu() }
@@ -110,11 +112,18 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUs
             DispatchQueue.main.async { [weak self] in
                 self?.showError("无法读取已有设置", "\(error.localizedDescription)\n暂用默认配置，原文件不会被自动覆盖。在设置中保存时会先保留原文件备份。")
             }
+        } else if firstLaunch {
+            openSettings(nil)
         }
     }
 
     private func tick() {
         let now = Date(), engine = Engine(), snapshot = engine.compute(settings, at: now)
+        let copied = now < reportCopiedUntil
+        statusItem?.button?.image = NSImage(systemSymbolName: copied ? "checkmark.circle.fill" : "banknote",
+                                          accessibilityDescription: copied ? "战报已复制" : settings.appName)
+        statusItem?.button?.toolTip = copied ? "战报已复制" : settings.appName + " · 点击恢复窗口或关闭穿透"
+        panel.mainView.setReportCopied(copied)
         if panel.isVisible { panel.mainView.update(snapshot, engine: engine, at: now) }
         if let previous = lastState, previous != snapshot.state, settings.offWorkNotify {
             if snapshot.state == .afterWork || (snapshot.state == .overtime && previous == .working) {
@@ -232,9 +241,14 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUs
     @objc private func restToday(_ sender: Any?) { change { $0.overrideDate = Engine().dateKey(Date()); $0.overrideMode = 1 } }
     @objc private func workToday(_ sender: Any?) { change { $0.overrideDate = Engine().dateKey(Date()); $0.overrideMode = 2 } }
     @objc private func clearOverride(_ sender: Any?) { change { $0.overrideDate = ""; $0.overrideMode = 0 } }
-    @objc private func copyReport(_ sender: Any?) {
+    @objc func copyReport(_ sender: Any?) {
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(Engine().report(settings, at: Date()), forType: .string)
+        if NSPasteboard.general.setString(Engine().report(settings, at: Date()), forType: .string) {
+            reportCopiedUntil = Date().addingTimeInterval(3)
+            tick()
+        } else {
+            showError("战报未能复制", "请稍后再试。")
+        }
     }
     @objc private func quit(_ sender: Any?) { NSApp.terminate(nil) }
 

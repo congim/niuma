@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 
 private final class FlippedForm: NSView { override var isFlipped: Bool { true } }
 
-final class SettingsWindow: NSWindowController, NSWindowDelegate {
+final class SettingsWindow: NSWindowController, NSWindowDelegate, NSTextFieldDelegate {
     private var original: AppSettings
     private let onSave: (AppSettings, Bool) throws -> Void
     var onClose: (() -> Void)?
@@ -17,14 +17,16 @@ final class SettingsWindow: NSWindowController, NSWindowDelegate {
     private let decimals = NSPopUpButton()
     private let errorLabel = Theme.label(12, color: .systemRed)
     private let preview = Theme.label(12, color: Theme.blue)
-    private let form = FlippedForm()
+    private var form = FlippedForm()
+    private let sections = NSSegmentedControl()
+    private var pages: [NSScrollView] = []
     private var cursor = 18.0
     private let formWidth = 680.0
 
     init(settings: AppSettings, onSave: @escaping (AppSettings, Bool) throws -> Void) {
         original = settings; self.onSave = onSave
         let area = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: formWidth, height: min(760, area.height - 64)),
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: formWidth, height: min(700, area.height - 64)),
                               styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
         super.init(window: window)
         window.title = "设置 · " + settings.appName
@@ -44,6 +46,8 @@ final class SettingsWindow: NSWindowController, NSWindowDelegate {
                                      "lunchStart": "午休开始", "lunchEnd": "午休结束", "overtimeRate": "加班倍率",
                                      "payDay": "发薪日", "bgPath": "背景图片路径"][key] ?? key)
         field.target = self; field.action = #selector(updatePreview(_:))
+        field.delegate = self
+        field.identifier = NSUserInterfaceItemIdentifier(key)
         fields[key] = field
         if let width = width { field.widthAnchor.constraint(equalToConstant: width).isActive = true }
         return field
@@ -114,15 +118,39 @@ final class SettingsWindow: NSWindowController, NSWindowDelegate {
     private func build() {
         guard let root = window?.contentView else { return }
         let s = original
-        section("薪资与作息")
-        row("软件名称", field("appName", s.appName))
+        let introduction = Theme.label(14, color: Theme.green, bold: true)
+        introduction.stringValue = s.salaryConfigured ? "调整设置，按自己的节奏上班。" : "先设置薪资与作息，让每一秒都有数。"
+        introduction.frame = NSRect(x: 24, y: root.bounds.height - 43, width: 632, height: 24)
+        root.addSubview(introduction)
+        sections.segmentCount = 3
+        for (index, title) in ["收入与作息", "桌面外观", "心愿与提醒"].enumerated() {
+            sections.setLabel(title, forSegment: index)
+            sections.setWidth(208, forSegment: index)
+        }
+        sections.trackingMode = .selectOne
+        sections.segmentStyle = .rounded
+        sections.target = self
+        sections.action = #selector(changeSection(_:))
+        sections.identifier = NSUserInterfaceItemIdentifier("settingsSections")
+        sections.setAccessibilityLabel("设置分组")
+        sections.frame = NSRect(x: 24, y: root.bounds.height - 86, width: 632, height: 30)
+        root.addSubview(sections)
+
+        beginPage()
+        section("我的收入")
         salaryMode.removeAllItems()
         salaryMode.addItems(withTitles: ["日薪", "月薪"])
         salaryMode.selectItem(at: s.salaryMode)
-        salaryMode.target = self; salaryMode.action = #selector(updatePreview(_:))
-        row("薪资", horizontal([salaryMode, field("amount", String(s.amount), width: 125),
+        salaryMode.target = self
+        salaryMode.action = #selector(updatePreview(_:))
+        salaryMode.identifier = NSUserInterfaceItemIdentifier("salaryMode")
+        salaryMode.setAccessibilityLabel("薪资方式")
+        row("薪资", horizontal([salaryMode, field("amount", String(s.amount), width: 145),
                                 ThemeLabel("货币"), field("currency", s.currency, width: 62)]))
-        row("月计薪天数", field("monthDays", String(s.monthDays)), detail: "月薪 ÷ 计薪天数 = 日薪；不按自然月的工作日重新分摊。")
+        row("月计薪天数", field("monthDays", String(s.monthDays)), detail: "月薪 ÷ 计薪天数 = 日薪，默认按 21.75 天折算。")
+        row("计算预览", preview, height: 44)
+        preview.identifier = NSUserInterfaceItemIdentifier("calculationPreview")
+        section("工作与休息")
         row("上下班时间", horizontal([field("startTime", s.startTime, width: 92), ThemeLabel("至"),
                                     field("endTime", s.endTime, width: 92)]))
         row("午休", horizontal([check("lunchEnabled", "暂停计薪", s.lunchEnabled),
@@ -130,26 +158,30 @@ final class SettingsWindow: NSWindowController, NSWindowDelegate {
                                 field("lunchEnd", s.lunchEnd, width: 82)]))
         let names = ["日", "一", "二", "三", "四", "五", "六"]
         for index in 0...6 {
-            let button = NSButton(checkboxWithTitle: names[index], target: nil, action: nil)
+            let button = NSButton(checkboxWithTitle: names[index], target: self, action: #selector(updatePreview(_:)))
             button.state = s.workDays.contains(index) ? .on : .off
             button.setAccessibilityLabel("星期" + names[index])
             workdays.append(button)
         }
         row("每周工作日", horizontal(workdays))
         row("加班", horizontal([check("overtime", "下班后继续计薪", s.overtime), ThemeLabel("倍率"),
-                                field("overtimeRate", String(s.overtimeRate), width: 76)]))
-        row("每月发薪日", field("payDay", String(s.payDay)), detail: "1～31 号；当月没有该日期时按当月最后一天计算。")
-        row("计算预览", preview, height: 44)
-        section("显示")
+                                field("overtimeRate", String(s.overtimeRate), width: 76)]),
+            detail: "启用后，工作日从设定的下班时间自动计薪至午夜。")
+        row("每月发薪日", field("payDay", String(s.payDay)), detail: "1～31 号，当月没有该日期时按最后一天计算。")
+        finishPage(in: root)
+
+        beginPage()
+        section("数字与纸感")
+        row("软件名称", field("appName", s.appName))
         decimals.removeAllItems()
         decimals.addItems(withTitles: ["2 位", "3 位", "4 位", "5 位", "6 位"])
         decimals.selectItem(at: s.decimals - 2)
         row("小数位数", decimals)
-        row("数字样式", check("odometer", "滚轮翻牌（系统减少动态效果时自动停用）", s.odometer))
+        row("数字样式", check("odometer", "滚轮翻牌", s.odometer), detail: "跟随系统的「减少动态效果」设置。")
         row("背景图透明度", slider("bgOpacity", s.bgOpacity, 0, 1))
         row("信息卡底色", slider("panelOpacity", s.panelOpacity, 0, 1))
         row("整体透明度", slider("windowOpacity", s.windowOpacity, 0.2, 1))
-        row("界面大小", slider("uiZoom", s.uiZoom, 0.5, 2), detail: "100% 按当前屏幕自动适配；保存后应用。")
+        row("界面大小", slider("uiZoom", s.uiZoom, 0.5, 2), detail: "100% 按当前屏幕自动适配，保存后应用。")
         let background = field("bgPath", s.bgPath, width: 330)
         background.isEditable = false
         background.lineBreakMode = .byTruncatingMiddle
@@ -157,31 +189,62 @@ final class SettingsWindow: NSWindowController, NSWindowDelegate {
         let reset = NSButton(title: "默认", target: self, action: #selector(resetBackground(_:)))
         row("背景图片", horizontal([background, choose, reset]))
         row("悬浮窗口", check("topmost", "窗口始终置顶", s.topmost))
-        section("其他")
-        row("通知", check("offWorkNotify", "上下班提醒（启用后请求系统通知权限）", s.offWorkNotify))
+        finishPage(in: root)
+
+        beginPage()
+        section("给自己一点小期待")
+        row("今日心愿单", editor("wishlist", s.wishlist), height: 110, detail: "每行填写 名称=价格，表示今天的收入能换到什么。")
+        row("鼓励语录", editor("quotes", s.quotes), height: 110, detail: "每行一句，每 10 分钟轮换，点击主窗口语录也可更换。")
+        section("陪伴方式")
+        row("通知", check("offWorkNotify", "上下班提醒", s.offWorkNotify), detail: "启用后请求系统通知权限。")
         row("登录启动", check("autoStart", "登录 Mac 后自动启动", SMAppService.mainApp.status == .enabled),
-            detail: "建议先将应用移至「应用程序」。若系统要求批准，请到系统设置 → 通用 → 登录项。")
-        row("心愿单", editor("wishlist", s.wishlist), height: 110, detail: "每行一个：名称=价格；忽略格式错误、非正数价格。")
-        row("鼓励语录", editor("quotes", s.quotes), height: 110, detail: "每行一句，每 10 分钟轮换；点击主窗口语录手动更换。")
-        let keys = Theme.label(12, color: Theme.muted)
-        keys.stringValue = "⌃⌥M 显示/隐藏　⌃⌥H 隐藏金额　⌃⌥T 鼠标穿透\n双击切换迷你模式，右键打开菜单。穿透后从菜单栏恢复。"
+            detail: "建议先移至「应用程序」，系统要求批准时前往 通用 → 登录项。")
+        let keys = Theme.label(11, color: Theme.muted)
+        keys.stringValue = "⌃⌥M 显示/隐藏　⌃⌥H 隐藏金额　⌃⌥T 鼠标穿透\n双击切换迷你模式，右键更多操作，穿透后从菜单栏恢复。"
         row("快捷键", keys, height: 48)
-        form.frame = NSRect(x: 0, y: 0, width: formWidth, height: cursor + 12)
-        let scroll = NSScrollView(frame: NSRect(x: 0, y: 82, width: formWidth, height: root.bounds.height - 82))
-        scroll.hasVerticalScroller = true; scroll.documentView = form
-        scroll.contentView.scroll(to: .zero)
-        root.addSubview(scroll)
-        errorLabel.frame = NSRect(x: 24, y: 10, width: 632, height: 29)
+        finishPage(in: root)
+
+        errorLabel.frame = NSRect(x: 24, y: 9, width: 632, height: 30)
         root.addSubview(errorLabel)
         let restore = NSButton(title: "恢复默认", target: self, action: #selector(restoreDefaults(_:)))
         restore.frame = NSRect(x: 20, y: 43, width: 100, height: 28)
-        let cancel = NSButton(title: "取消", target: self, action: #selector(cancel(_:)))
-        cancel.frame = NSRect(x: 470, y: 43, width: 90, height: 28); cancel.keyEquivalent = "\u{1b}"
-        let save = NSButton(title: "保存", target: self, action: #selector(save(_:)))
-        save.frame = NSRect(x: 566, y: 43, width: 90, height: 28); save.keyEquivalent = "\r"
-        for button in [restore, cancel, save] { button.bezelStyle = .rounded; root.addSubview(button) }
+        let cancel = NSButton(title: s.salaryConfigured ? "取消" : "先看示例", target: self, action: #selector(cancel(_:)))
+        cancel.frame = NSRect(x: 442, y: 43, width: 100, height: 28)
+        cancel.keyEquivalent = "\u{1b}"
+        let save = NSButton(title: s.salaryConfigured ? "保存" : "开始我的计薪", target: self, action: #selector(save(_:)))
+        save.frame = NSRect(x: 546, y: 43, width: 112, height: 28)
+        save.keyEquivalent = "\r"
+        for button in [restore, cancel, save] {
+            button.bezelStyle = .rounded
+            root.addSubview(button)
+        }
+        sections.selectedSegment = 0
+        changeSection(sections)
         updatePreview(nil)
     }
+
+    private func beginPage() {
+        form = FlippedForm()
+        cursor = 8
+    }
+
+    private func finishPage(in root: NSView) {
+        form.frame = NSRect(x: 0, y: 0, width: formWidth, height: cursor + 12)
+        let scroll = NSScrollView(frame: NSRect(x: 0, y: 82, width: formWidth, height: root.bounds.height - 186))
+        scroll.hasVerticalScroller = true
+        scroll.drawsBackground = false
+        scroll.documentView = form
+        scroll.contentView.scroll(to: .zero)
+        root.addSubview(scroll)
+        pages.append(scroll)
+    }
+
+    @objc private func changeSection(_ sender: NSSegmentedControl) {
+        window?.makeFirstResponder(nil)
+        for (index, page) in pages.enumerated() { page.isHidden = index != sender.selectedSegment }
+    }
+
+    func controlTextDidChange(_ notification: Notification) { updatePreview(notification.object) }
 
     private func collect() throws -> AppSettings {
         var result = original
@@ -194,14 +257,17 @@ final class SettingsWindow: NSWindowController, NSWindowDelegate {
         result.appName = fields["appName"]!.stringValue
         result.salaryMode = salaryMode.indexOfSelectedItem
         result.amount = try number("amount", "薪资")
-        result.monthDays = try number("monthDays", "计薪天数")
+        if result.salaryMode == 1 { result.monthDays = try number("monthDays", "计薪天数") }
         result.currency = fields["currency"]!.stringValue
         result.startTime = fields["startTime"]!.stringValue; result.endTime = fields["endTime"]!.stringValue
         result.lunchEnabled = checks["lunchEnabled"]!.state == .on
-        result.lunchStart = fields["lunchStart"]!.stringValue; result.lunchEnd = fields["lunchEnd"]!.stringValue
+        if result.lunchEnabled {
+            result.lunchStart = fields["lunchStart"]!.stringValue
+            result.lunchEnd = fields["lunchEnd"]!.stringValue
+        }
         result.workDays = workdays.enumerated().compactMap { $0.element.state == .on ? $0.offset : nil }
         result.overtime = checks["overtime"]!.state == .on
-        result.overtimeRate = try number("overtimeRate", "加班倍率")
+        if result.overtime { result.overtimeRate = try number("overtimeRate", "加班倍率") }
         guard let payday = Int(fields["payDay"]!.stringValue) else { throw SettingsError(message: "发薪日应为整数") }
         result.payDay = payday; result.decimals = decimals.indexOfSelectedItem + 2
         result.odometer = checks["odometer"]!.state == .on
@@ -218,19 +284,33 @@ final class SettingsWindow: NSWindowController, NSWindowDelegate {
     }
 
     @objc private func updatePreview(_ sender: Any?) {
+        fields["monthDays"]?.isEnabled = salaryMode.indexOfSelectedItem == 1
+        fields["lunchStart"]?.isEnabled = checks["lunchEnabled"]?.state == .on
+        fields["lunchEnd"]?.isEnabled = checks["lunchEnabled"]?.state == .on
+        fields["overtimeRate"]?.isEnabled = checks["overtime"]?.state == .on
         for (key, slider) in sliders {
             (slider.superview?.subviews.first { $0.identifier?.rawValue == key + "Value" } as? NSTextField)?.stringValue = String(format: "%.0f%%", slider.doubleValue * 100)
         }
-        guard let settings = try? collect() else { preview.stringValue = "保存前请检查薪资与作息格式。"; return }
-        let snapshot = Engine().compute(settings, at: Date())
-        preview.stringValue = String(format: "日薪 %@%.2f · 每天计薪 %.2f 小时\n时薪 %@%.2f · 每秒 %@%.6f",
-                                     settings.currency, settings.dailyPay, snapshot.paidSeconds / 3600,
-                                     settings.currency, snapshot.hourlyPay, settings.currency, snapshot.hourlyPay / 3600)
+        do {
+            let settings = try collect()
+            let snapshot = Engine().compute(settings, at: Date())
+            preview.textColor = Theme.green
+            preview.stringValue = String(format: "日薪 %@%.2f · 每天计薪 %.2f 小时\n时薪 %@%.2f · 每秒 %@%.6f",
+                                         settings.currency, settings.dailyPay, snapshot.paidSeconds / 3600,
+                                         settings.currency, snapshot.hourlyPay, settings.currency, snapshot.hourlyPay / 3600)
+            errorLabel.stringValue = ""
+        } catch {
+            preview.textColor = .systemRed
+            preview.stringValue = error.localizedDescription
+            errorLabel.stringValue = error.localizedDescription
+        }
     }
 
     @discardableResult func saveDraft() -> Bool {
         do {
-            try onSave(collect(), checks["autoStart"]!.state == .on)
+            var settings = try collect()
+            settings.salaryConfigured = true
+            try onSave(settings, checks["autoStart"]!.state == .on)
             close(); return true
         } catch { errorLabel.stringValue = error.localizedDescription; return false }
     }
@@ -252,7 +332,8 @@ final class SettingsWindow: NSWindowController, NSWindowDelegate {
         alert.addButton(withTitle: "恢复默认"); alert.addButton(withTitle: "取消")
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         window?.contentView?.subviews.forEach { $0.removeFromSuperview() }
-        form.subviews.forEach { $0.removeFromSuperview() }; cursor = 18
+        pages.removeAll()
+        cursor = 8
         fields.removeAll(); checks.removeAll(); sliders.removeAll(); texts.removeAll(); workdays.removeAll()
         original = AppSettings()
         build()
